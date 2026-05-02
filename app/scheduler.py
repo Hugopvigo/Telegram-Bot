@@ -17,7 +17,7 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         provincia_users[u["provincia_code"]].append(u["chat_id"])
 
     for codigo, chat_ids in provincia_users.items():
-        alertas = get_alertas_provincia(codigo)
+        alertas = get_alertas_provincia(codigo, min_severity="Moderate")
         if not alertas:
             continue
 

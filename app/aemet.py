@@ -91,9 +91,16 @@ def _aemet_get_bytes(endpoint: str) -> bytes:
     return b""
 
 
+SEVERITY_ORDER = {"Minor": 0, "Moderate": 1, "Severe": 2, "Extreme": 3}
+NOTIFICABLE_SEVERITIES = {"Moderate", "Severe", "Extreme"}
+
+
 def _cap_xml_to_dicts(root: ET.Element) -> list[dict]:
     alerts = []
     for info in root.findall("cap:info", CAP_NS):
+        lang = info.findtext("cap:language", "", CAP_NS)
+        if lang and not lang.startswith("es"):
+            continue
         areas = []
         for area in info.findall("cap:area", CAP_NS):
             desc = area.findtext("cap:areaDesc", "", CAP_NS)
@@ -130,24 +137,32 @@ def _cap_tar_to_dicts(tar_bytes: bytes) -> list[dict]:
     return alerts
 
 
-def get_alertas_provincia(codigo: str) -> list[dict]:
+def get_alertas_provincia(codigo: str, min_severity: str | None = None) -> list[dict]:
     try:
         ccaa = PROVINCIA_TO_CCAA.get(codigo)
         if not ccaa:
             return []
         endpoint = f"/api/avisos_cap/ultimoelaborado/area/{ccaa}"
         tar_bytes = _aemet_get_bytes(endpoint)
-        return _cap_tar_to_dicts(tar_bytes)
+        alerts = _cap_tar_to_dicts(tar_bytes)
+        if min_severity:
+            min_level = SEVERITY_ORDER.get(min_severity, 0)
+            alerts = [a for a in alerts if SEVERITY_ORDER.get(a.get("severity", ""), 0) >= min_level]
+        return alerts
     except Exception as e:
         print(f"Error obteniendo alertas para {codigo}: {e}")
         return []
 
 
-def get_alertas_nacional() -> list[dict]:
+def get_alertas_nacional(min_severity: str | None = None) -> list[dict]:
     try:
         endpoint = "/api/avisos_cap/ultimoelaborado/area/esp"
         tar_bytes = _aemet_get_bytes(endpoint)
-        return _cap_tar_to_dicts(tar_bytes)
+        alerts = _cap_tar_to_dicts(tar_bytes)
+        if min_severity:
+            min_level = SEVERITY_ORDER.get(min_severity, 0)
+            alerts = [a for a in alerts if SEVERITY_ORDER.get(a.get("severity", ""), 0) >= min_level]
+        return alerts
     except Exception as e:
         print(f"Error obteniendo alertas nacionales: {e}")
         return []
