@@ -1,7 +1,11 @@
+import io
+import tarfile
 import httpx
+import xml.etree.ElementTree as ET
 from app.config import AEMET_API_KEY
 
 AEMET_BASE = "https://opendata.aemet.es/opendata"
+_tar_cache: dict[str, bytes] = {}
 
 PROVINCIAS = {
     "A Coruña": "15", "Álava": "01", "Albacete": "02", "Alicante": "03",
@@ -21,7 +25,34 @@ PROVINCIAS = {
 
 PROVINCIA_CODES = {v: k for k, v in PROVINCIAS.items()}
 
+PROVINCIA_TO_CCAA = {
+    "04": "61", "11": "61", "14": "61", "18": "61", "21": "61",
+    "23": "61", "29": "61", "41": "61",
+    "22": "62", "44": "62", "50": "62",
+    "33": "63",
+    "07": "64",
+    "35": "65", "38": "65",
+    "39": "66",
+    "05": "67", "09": "67", "24": "67", "34": "67", "37": "67",
+    "40": "67", "42": "67", "47": "67", "49": "67",
+    "02": "68", "13": "68", "16": "68", "19": "68", "45": "68",
+    "08": "69", "17": "69", "25": "69", "43": "69",
+    "06": "70", "10": "70",
+    "15": "71", "27": "71", "32": "71", "36": "71",
+    "28": "72",
+    "30": "73",
+    "31": "74",
+    "01": "75", "20": "75", "48": "75",
+    "26": "76",
+    "03": "77", "12": "77", "46": "77",
+    "51": "78",
+    "52": "79",
+}
+
+CCAA_CODES = {v: k for k, v in PROVINCIA_TO_CCAA.items()}
+
 _client = httpx.Client(timeout=30.0)
+CAP_NS = {"cap": "urn:oasis:names:tc:emergency:cap:1.2"}
 
 
 def _aemet_get(endpoint: str) -> dict:
@@ -38,19 +69,85 @@ def _aemet_get(endpoint: str) -> dict:
     return data
 
 
+def clear_tar_cache():
+    _tar_cache.clear()
+
+
+def _aemet_get_bytes(endpoint: str) -> bytes:
+    cached = _tar_cache.get(endpoint)
+    if cached is not None:
+        return cached
+    url = f"{AEMET_BASE}{endpoint}"
+    headers = {"api_key": AEMET_API_KEY}
+    r = _client.get(url, headers=headers)
+    r.raise_for_status()
+    data = r.json()
+    if data.get("estado") == 200 and "datos" in data:
+        datos_url = data["datos"]
+        r2 = _client.get(datos_url, headers=headers)
+        r2.raise_for_status()
+        _tar_cache[endpoint] = r2.content
+        return r2.content
+    return b""
+
+
+def _cap_xml_to_dicts(root: ET.Element) -> list[dict]:
+    alerts = []
+    for info in root.findall("cap:info", CAP_NS):
+        areas = []
+        for area in info.findall("cap:area", CAP_NS):
+            desc = area.findtext("cap:areaDesc", "", CAP_NS)
+            if desc:
+                areas.append(desc)
+        alerts.append({
+            "identifier": root.findtext("cap:identifier", "", CAP_NS),
+            "event": info.findtext("cap:event", "Alerta meteorológica", CAP_NS),
+            "severity": info.findtext("cap:severity", "", CAP_NS),
+            "headline": info.findtext("cap:headline", "", CAP_NS),
+            "description": info.findtext("cap:description", "", CAP_NS),
+            "effective": info.findtext("cap:effective", "", CAP_NS),
+            "expires": info.findtext("cap:expires", "", CAP_NS),
+            "areas": areas,
+        })
+    return alerts
+
+
+def _cap_tar_to_dicts(tar_bytes: bytes) -> list[dict]:
+    if not tar_bytes:
+        return []
+    alerts = []
+    with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tar:
+        for member in tar.getmembers():
+            f = tar.extractfile(member)
+            if f is None:
+                continue
+            try:
+                xml_text = f.read().decode("utf-8")
+                root = ET.fromstring(xml_text)
+                alerts.extend(_cap_xml_to_dicts(root))
+            except (ET.ParseError, UnicodeDecodeError, ValueError):
+                continue
+    return alerts
+
+
 def get_alertas_provincia(codigo: str) -> list[dict]:
-    endpoint = f"/api/avisos_cap/{codigo}"
     try:
-        return _aemet_get(endpoint)
+        ccaa = PROVINCIA_TO_CCAA.get(codigo)
+        if not ccaa:
+            return []
+        endpoint = f"/api/avisos_cap/ultimoelaborado/area/{ccaa}"
+        tar_bytes = _aemet_get_bytes(endpoint)
+        return _cap_tar_to_dicts(tar_bytes)
     except Exception as e:
         print(f"Error obteniendo alertas para {codigo}: {e}")
         return []
 
 
 def get_alertas_nacional() -> list[dict]:
-    endpoint = "/api/avisos_cap/es"
     try:
-        return _aemet_get(endpoint)
+        endpoint = "/api/avisos_cap/ultimoelaborado/area/esp"
+        tar_bytes = _aemet_get_bytes(endpoint)
+        return _cap_tar_to_dicts(tar_bytes)
     except Exception as e:
         print(f"Error obteniendo alertas nacionales: {e}")
         return []
@@ -63,6 +160,7 @@ def format_alerta(alerta: dict) -> str:
     description = alerta.get("description", "")
     effective = alerta.get("effective", "")
     expires = alerta.get("expires", "")
+    areas = alerta.get("areas", [])
 
     severity_emoji = {
         "Extreme": "🔴", "Severe": "🟠", "Moderate": "🟡", "Minor": "🟢"
@@ -74,6 +172,10 @@ def format_alerta(alerta: dict) -> str:
         msg += f"{headline}\n"
     if description:
         msg += f"\n{description[:500]}\n"
+    if areas:
+        msg += f"\n📍 Zonas: {', '.join(areas[:3])}"
+        if len(areas) > 3:
+            msg += f" (+{len(areas) - 3} más)"
     if effective:
         msg += f"\n🕐 Desde: {effective}"
     if expires:

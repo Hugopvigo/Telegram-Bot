@@ -2,10 +2,12 @@ import asyncio
 from collections import defaultdict
 from telegram.ext import ContextTypes
 from app import database as db
-from app.aemet import get_alertas_provincia, format_alerta
+from app.aemet import get_alertas_provincia, format_alerta, clear_tar_cache
 
 
 async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
+    clear_tar_cache()
+
     users = db.get_all_users()
     if not users:
         return

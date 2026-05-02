@@ -1,10 +1,11 @@
 from app.database import init_db
 from app.bot import create_app
 from app.scheduler import check_and_notify
-from app.config import CHECK_INTERVAL_MINUTES
+from app.config import CHECK_INTERVAL_MINUTES, validate
 
 
 def main():
+    validate()
     init_db()
 
     app = create_app()
