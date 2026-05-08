@@ -2,6 +2,7 @@ import io
 import tarfile
 import httpx
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from app.config import AEMET_API_KEY
 
 AEMET_BASE = "https://opendata.aemet.es/opendata"
@@ -92,7 +93,22 @@ def _aemet_get_bytes(endpoint: str) -> bytes:
 
 
 SEVERITY_ORDER = {"Minor": 0, "Moderate": 1, "Severe": 2, "Extreme": 3}
-NOTIFICABLE_SEVERITIES = {"Moderate", "Severe", "Extreme"}
+MIN_NOTIFY_SEVERITY = "Moderate"
+
+SEVERITY_ES = {
+    "Minor": "Verde",
+    "Moderate": "Amarillo",
+    "Severe": "Naranja",
+    "Extreme": "Rojo",
+}
+
+CERTAINTY_ES = {
+    "Observed": "Observado",
+    "Likely": "Probable",
+    "Possible": "Posible",
+    "Unlikely": "Improbable",
+    "Unknown": "Desconocido",
+}
 
 
 def _cap_xml_to_dicts(root: ET.Element) -> list[dict]:
@@ -110,6 +126,7 @@ def _cap_xml_to_dicts(root: ET.Element) -> list[dict]:
             "identifier": root.findtext("cap:identifier", "", CAP_NS),
             "event": info.findtext("cap:event", "Alerta meteorológica", CAP_NS),
             "severity": info.findtext("cap:severity", "", CAP_NS),
+            "certainty": info.findtext("cap:certainty", "", CAP_NS),
             "headline": info.findtext("cap:headline", "", CAP_NS),
             "description": info.findtext("cap:description", "", CAP_NS),
             "effective": info.findtext("cap:effective", "", CAP_NS),
@@ -122,6 +139,7 @@ def _cap_xml_to_dicts(root: ET.Element) -> list[dict]:
 def _cap_tar_to_dicts(tar_bytes: bytes) -> list[dict]:
     if not tar_bytes:
         return []
+    seen: set[str] = set()
     alerts = []
     with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tar:
         for member in tar.getmembers():
@@ -131,7 +149,12 @@ def _cap_tar_to_dicts(tar_bytes: bytes) -> list[dict]:
             try:
                 xml_text = f.read().decode("utf-8")
                 root = ET.fromstring(xml_text)
-                alerts.extend(_cap_xml_to_dicts(root))
+                for alert in _cap_xml_to_dicts(root):
+                    key = alert.get("identifier") or f"{alert['event']}|{alert['effective']}|{alert['expires']}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    alerts.append(alert)
             except (ET.ParseError, UnicodeDecodeError, ValueError):
                 continue
     return alerts
@@ -168,21 +191,35 @@ def get_alertas_nacional(min_severity: str | None = None) -> list[dict]:
         return []
 
 
+def _fmt_dt(iso: str) -> str:
+    try:
+        dt = datetime.fromisoformat(iso)
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        return iso
+
+
 def format_alerta(alerta: dict) -> str:
     event = alerta.get("event", "Alerta meteorológica")
     severity = alerta.get("severity", "")
     headline = alerta.get("headline", "")
     description = alerta.get("description", "")
-    effective = alerta.get("effective", "")
-    expires = alerta.get("expires", "")
+    effective = _fmt_dt(alerta.get("effective", ""))
+    expires = _fmt_dt(alerta.get("expires", ""))
     areas = alerta.get("areas", [])
 
     severity_emoji = {
         "Extreme": "🔴", "Severe": "🟠", "Moderate": "🟡", "Minor": "🟢"
     }.get(severity, "⚪")
+    severity_label = SEVERITY_ES.get(severity, severity)
+    certainty = alerta.get("certainty", "")
+    certainty_label = CERTAINTY_ES.get(certainty, certainty)
 
     msg = f"{severity_emoji} *{event}*\n"
-    msg += f"Severidad: {severity}\n"
+    msg += f"Nivel: {severity_label}"
+    if certainty_label:
+        msg += f" · {certainty_label}"
+    msg += "\n"
     if headline:
         msg += f"{headline}\n"
     if description:

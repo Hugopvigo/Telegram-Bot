@@ -14,6 +14,7 @@ from app.aemet import (
     get_alertas_provincia,
     format_alerta,
     PROVINCIA_CODES,
+    MIN_NOTIFY_SEVERITY,
 )
 
 
@@ -99,7 +100,7 @@ async def alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    alertas_list = get_alertas_provincia(user["provincia_code"])
+    alertas_list = get_alertas_provincia(user["provincia_code"], min_severity=MIN_NOTIFY_SEVERITY)
     if not alertas_list:
         await update.message.reply_text(
             f"✅ No hay alertas activas para {user['provincia_name']}"

@@ -2,7 +2,7 @@ import asyncio
 from collections import defaultdict
 from telegram.ext import ContextTypes
 from app import database as db
-from app.aemet import get_alertas_provincia, format_alerta, clear_tar_cache
+from app.aemet import get_alertas_provincia, format_alerta, clear_tar_cache, MIN_NOTIFY_SEVERITY
 
 
 async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
@@ -17,7 +17,7 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         provincia_users[u["provincia_code"]].append(u["chat_id"])
 
     for codigo, chat_ids in provincia_users.items():
-        alertas = get_alertas_provincia(codigo, min_severity="Moderate")
+        alertas = get_alertas_provincia(codigo, min_severity=MIN_NOTIFY_SEVERITY)
         if not alertas:
             continue
 
