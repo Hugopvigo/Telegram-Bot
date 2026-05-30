@@ -1,44 +1,33 @@
-# 🌤️ TiempoBot
+# TiempoBot
+
+![TiempoBot](assets/Icon.png)
 
 Bot de Telegram para recibir alertas meteorológicas de la **AEMET** (Agencia Estatal de Meteorología) en tiempo real. Suscríbete a tu provincia y recibe notificaciones automáticas cuando se emitan avisos.
 
 ---
 
-## ✨ Características
+## Screenshots
 
-- 🔔 **Notificaciones automáticas** — El bot consulta la API de AEMET periódicamente y te envía alertas nuevas
-- 🗺️ **52 provincias españolas** — Cobertura completa incluyendo Ceuta y Melilla
-- 🎹 **Teclado interactivo** — Selección de provincia con botones en Telegram
-- 🎨 **Emojis por severidad** — 🟢 Moderado, 🟡 Importante, 🟠 Naranja, 🔴 Rojo/Extremo
-- 🛡️ **Deduplicación** — Nunca recibes la misma alerta dos veces
-- 🧹 **Limpieza automática** — Alerts antiguas purgadas tras 7 días
-- 🐳 **Docker ready** — Despliegue con un solo comando
+| Alerta amarilla | Alerta naranja |
+|---|---|
+| ![Alerta amarilla](assets/AlertaTiempoBotYellow.jpg) | ![Alerta naranja](assets/AlertaTiempoBotOrange.jpg) |
 
 ---
 
-## 📁 Estructura del proyecto
+## Características
 
-```
-TiempoBot/
-├── run.py              # 🚀 Punto de entrada
-├── requirements.txt    # 📦 Dependencias Python
-├── Dockerfile          # 🐳 Imagen Docker
-├── docker-compose.yml  # 🐳 Composición Docker
-├── .env.example        # 🔑 Plantilla de variables de entorno
-├── .gitignore
-└── app/
-    ├── __init__.py     # 📦 Paquete Python
-    ├── main.py         # 🧠 Orquestador: init DB, bot, scheduler, polling
-    ├── config.py       # ⚙️ Lectura de variables de entorno
-    ├── bot.py          # 🤖 Handlers de comandos de Telegram
-    ├── aemet.py        # 🌦️ Cliente API AEMET: códigos, fetch, formateo
-    ├── database.py     # 💾 SQLite: usuarios, alertas enviadas, CRUD
-    └── scheduler.py    # ⏰ Job periódico: fetch + notificación + dedup
-```
+- **Notificaciones automáticas** — El bot consulta la API de AEMET periódicamente y te envía alertas nuevas
+- **52 provincias españolas** — Cobertura completa incluyendo Ceuta y Melilla
+- **Teclado interactivo** — Selección de provincia con botones en Telegram
+- **Emojis por severidad** — 🟢 Verde, 🟡 Amarillo, 🟠 Naranja, 🔴 Rojo
+- **Solo alertas relevantes** — Notifica a partir de nivel amarillo, ignorando verdes
+- **Deduplicación** — Nunca recibes la misma alerta dos veces
+- **Limpieza automática** — Alertas antiguas purgadas tras 7 días
+- **Docker ready** — Despliegue con un solo comando
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Capa | Tecnología | Versión |
 |---|---|---|
@@ -48,11 +37,11 @@ TiempoBot/
 | Scheduler | APScheduler | 3.10.4 |
 | Base de datos | SQLite3 | stdlib |
 | Contenedor | Docker + Docker Compose | — |
-| API externa | AEMET OpenData | REST |
+| API externa | AEMET OpenData | REST (CAP v1.2) |
 
 ---
 
-## 🤖 Comandos del bot
+## Comandos del bot
 
 | Comando | Descripción |
 |---|---|
@@ -65,18 +54,18 @@ TiempoBot/
 
 ---
 
-## ⚙️ Variables de entorno
+## Variables de entorno
 
 | Variable | Requerida | Default | Descripción |
 |---|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | ✅ Sí | — | Token del bot desde [@BotFather](https://t.me/BotFather) |
-| `AEMET_API_KEY` | ✅ Sí | — | API key desde [AEMET OpenData](https://opendata.aemet.es/) |
-| `CHECK_INTERVAL_MINUTES` | ❌ No | `10` | Intervalo (minutos) entre consultas a AEMET |
-| `DB_PATH` | ❌ No | `/data/users.db` | Ruta de la base de datos SQLite |
+| `TELEGRAM_BOT_TOKEN` | Sí | — | Token del bot desde [@BotFather](https://t.me/BotFather) |
+| `AEMET_API_KEY` | Sí | — | API key desde [AEMET OpenData](https://opendata.aemet.es/) |
+| `CHECK_INTERVAL_MINUTES` | No | `10` | Intervalo (minutos) entre consultas a AEMET |
+| `DB_PATH` | No | `/data/users.db` | Ruta de la base de datos SQLite |
 
 ---
 
-## 🚀 Instalación y uso
+## Instalación y uso
 
 ### Local
 
@@ -116,38 +105,11 @@ docker compose down
 
 ---
 
-## 💾 Esquema de base de datos
-
-**`users`** — Suscripciones de usuarios
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `chat_id` | INTEGER (PK) | ID del chat de Telegram |
-| `provincia_code` | TEXT | Código de provincia AEMET |
-| `provincia_name` | TEXT | Nombre de la provincia |
-
-**`sent_alerts`** — Alertas ya enviadas (deduplicación)
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INTEGER (PK) | Autoincremental |
-| `chat_id` | INTEGER | ID del chat |
-| `alert_id` | TEXT | Identificador único de la alerta |
-| `sent_at` | TIMESTAMP | Fecha de envío |
-
-> Constraint `UNIQUE(chat_id, alert_id)` evita duplicados.
-
----
-
-## 🔑 Obtener credenciales
+## Obtener credenciales
 
 1. **Telegram Bot Token** — Habla con [@BotFather](https://t.me/BotFather) en Telegram y crea un nuevo bot
 2. **AEMET API Key** — Regístrate en [AEMET OpenData](https://opendata.aemet.es/) y solicita tu clave de API
 
 ---
 
-## 📄 Licencia
-
-Este proyecto está bajo la licencia [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
-
-Puedes usar, modificar y distribuir este proyecto libremente, dando crédito al autor original.
+Hecho con ❤️ y ⚡ para ahorrar dinero y energía por [Hugo Perez-Vigo](https://github.com/Hugopvigo/PrecioLuz)
