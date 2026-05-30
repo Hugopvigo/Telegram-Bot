@@ -1,6 +1,8 @@
-# TiempoBot
+<h1 align="center">TiempoBot</h1>
 
-![TiempoBot](assets/Icon.png)
+<p align="center">
+  <img src="assets/Icon.png" width="120" alt="TiempoBot">
+</p>
 
 Bot de Telegram para recibir alertas meteorológicas de la **AEMET** (Agencia Estatal de Meteorología) en tiempo real. Suscríbete a tu provincia y recibe notificaciones automáticas cuando se emitan avisos.
 
