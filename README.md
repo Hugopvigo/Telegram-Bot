@@ -114,4 +114,4 @@ docker compose down
 
 ---
 
-Hecho con ❤️ y ⚡ para ahorrar dinero y energía por [Hugo Perez-Vigo](https://github.com/Hugopvigo/PrecioLuz)
+<p align="center">Hecho con ☂️ por <a href="https://hugopvigo.es/">Hugo Perez-Vigo</a> · <a href="http://twitter.com/hugopvigo">@hugopvigo</a></p>
