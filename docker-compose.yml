@@ -1,10 +1,9 @@
 services:
   bot:
+    container_name: tiempobot
     build: .
     env_file: .env
     volumes:
-      - bot_data:/data
+      - ./data:/data
     restart: unless-stopped
-
-volumes:
-  bot_data:
+    stop_grace_period: 30s
