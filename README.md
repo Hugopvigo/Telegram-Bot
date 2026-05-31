@@ -114,4 +114,12 @@ docker compose down
 
 ---
 
-<p align="center">Hecho con ☂️ por <a href="https://hugopvigo.es/">Hugo Perez-Vigo</a> · <a href="http://twitter.com/hugopvigo">@hugopvigo</a></p>
+---
+
+<div align="center">
+
+**Desarrollado por [Hugo Perez-Vigo](https://hugopvigo.es)** · [@hugopvigo](https://x.com/hugopvigo)
+
+[![GitHub](https://img.shields.io/badge/GitHub-Hugopvigo-181717?style=for-the-badge&logo=github)](https://github.com/Hugopvigo)
+
+</div>
