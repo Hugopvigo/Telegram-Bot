@@ -8,13 +8,19 @@ from telegram.ext import (
 )
 from app.config import TELEGRAM_BOT_TOKEN
 from app import database as db
+from app.rich import send_rich
 from app.aemet import (
     PROVINCIAS,
     search_provincia,
     get_alertas_provincia,
-    format_alerta,
+    get_alertas_nacional,
     PROVINCIA_CODES,
     MIN_NOTIFY_SEVERITY,
+    format_alerta_rich_full,
+    format_provincias_rich,
+    format_start_rich,
+    format_estado_rich,
+    format_nacional_rich,
 )
 
 
@@ -26,31 +32,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if codigo:
             nombre = PROVINCIA_CODES[codigo]
             db.add_user(update.effective_chat.id, codigo, nombre)
-            await update.message.reply_text(
-                f"✅ Te has suscrito a las alertas de *{nombre}*.\n"
-                f"Recibirás notificaciones cuando haya alertas activas.\n\n"
-                f"Usa /alertas para ver las alertas actuales.\n"
-                f"Usa /cancelar para darte de baja.",
-                parse_mode="Markdown",
+            html = (
+                f"<h2>✅ Suscrito correctamente</h2>\n"
+                f"<p>Recibirás alertas de <b>{nombre}</b> cuando AEMET emita avisos.</p>\n"
+                f"<footer>Usa /alertas para consultar · /cancelar para darte de baja</footer>"
             )
+            await send_rich(update.effective_chat.id, html)
             return
-        await update.message.reply_text(
-            f"❌ No encontré la provincia '{query}'.\n"
-            f"Usa /provincias para ver las disponibles.",
+        html = (
+            f"<h2>❌ Provincia no encontrada</h2>\n"
+            f"<p>No encontré '<b>{query}</b>'.</p>\n"
+            f"<p>Usa <code>/provincias</code> para ver las disponibles.</p>"
         )
+        await send_rich(update.effective_chat.id, html)
         return
 
-    await update.message.reply_text(
-        "🌤 *AlertasMeteo Bot*\n\n"
-        "Te notifico cuando AEMET emita alertas meteorológicas en tu provincia.\n\n"
-        "Comandos:\n"
-        "/suscribir <provincia> — Suscribirte a alertas\n"
-        "/provincias — Ver provincias disponibles\n"
-        "/alertas — Ver alertas actuales de tu provincia\n"
-        "/estado — Ver tu suscripción\n"
-        "/cancelar — Cancelar suscripción",
-        parse_mode="Markdown",
-    )
+    await send_rich(update.effective_chat.id, format_start_rich())
 
 
 async def suscribir(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -70,74 +67,101 @@ async def suscribir(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     codigo = search_provincia(query)
     if not codigo:
-        await update.message.reply_text(
-            f"❌ No encontré la provincia '{query}'. Usa /provincias para ver las disponibles."
+        html = (
+            f"<h2>❌ Provincia no encontrada</h2>\n"
+            f"<p>No encontré '<b>{query}</b>'. Usa <code>/provincias</code> para ver las disponibles.</p>"
         )
+        await send_rich(update.effective_chat.id, html)
         return
 
     nombre = PROVINCIA_CODES[codigo]
     db.add_user(update.effective_chat.id, codigo, nombre)
-    await update.message.reply_text(
-        f"✅ Suscrito a alertas de *{nombre}*",
-        parse_mode="Markdown",
-        reply_markup=ReplyKeyboardRemove(),
+    html = (
+        f"<h2>✅ Suscrito correctamente</h2>\n"
+        f"<p>Recibirás alertas de <b>{nombre}</b> cuando AEMET emita avisos.</p>\n"
+        f"<footer>Usa /alertas para consultar · /cancelar para darte de baja</footer>"
     )
+    await send_rich(update.effective_chat.id, html, reply_markup=ReplyKeyboardRemove())
 
 
 async def provincias(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    nombres = sorted(PROVINCIAS.keys())
-    text = "🗺 *Provincias disponibles:*\n\n" + "\n".join(
-        f"• {n}" for n in nombres
-    )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await send_rich(update.effective_chat.id, format_provincias_rich())
 
 
 async def alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = db.get_user(update.effective_chat.id)
     if not user:
-        await update.message.reply_text(
-            "❌ No estás suscrito. Usa /suscribir <provincia>"
+        html = (
+            "<h2>❌ No suscrito</h2>\n"
+            "<p>No estás suscrito a ninguna provincia.</p>\n"
+            "<p>Usa <code>/suscribir</code> para comenzar.</p>"
         )
+        await send_rich(update.effective_chat.id, html)
         return
+
+    loading = await update.message.reply_text("🔍 Consultando alertas de AEMET...")
 
     alertas_list = get_alertas_provincia(user["provincia_code"], min_severity=MIN_NOTIFY_SEVERITY)
     if not alertas_list:
-        await update.message.reply_text(
-            f"✅ No hay alertas activas para {user['provincia_name']}"
-        )
+        html = f"<h2>✅ Sin alertas</h2>\n<p>No hay alertas activas para <b>{user['provincia_name']}</b>.</p>"
+        await send_rich(update.effective_chat.id, html)
+        await loading.delete()
         return
 
-    messages = []
-    for a in alertas_list:
-        messages.append(format_alerta(a))
+    html = format_alerta_rich_full(user["provincia_name"], alertas_list)
+    await send_rich(update.effective_chat.id, html)
+    await loading.delete()
 
-    full_text = f"⚠ Alertas para *{user['provincia_name']}*:\n\n" + "\n\n---\n\n".join(messages)
-    for chunk in _split_message(full_text):
-        await update.message.reply_text(chunk, parse_mode="Markdown")
+
+async def alertas_nacionales(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    loading = await update.message.reply_text("🔍 Consultando alertas nacionales...")
+
+    alertas_list = get_alertas_nacional(min_severity=MIN_NOTIFY_SEVERITY)
+    html = format_nacional_rich(alertas_list)
+    await send_rich(update.effective_chat.id, html)
+    await loading.delete()
+
+
+async def clima(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = db.get_user(update.effective_chat.id)
+    if not user:
+        html = (
+            "<h2>❌ No suscrito</h2>\n"
+            "<p>Usa <code>/suscribir</code> primero para seleccionar tu provincia.</p>"
+        )
+        await send_rich(update.effective_chat.id, html)
+        return
+
+    html = (
+        f"<h2> Pronóstico para {user['provincia_name']}</h2>\n"
+        f"<p>Función en desarrollo. Próximamente podrás ver el pronóstico diario.</p>\n"
+        f"<footer>📡 Fuente: AEMET</footer>"
+    )
+    await send_rich(update.effective_chat.id, html)
 
 
 async def estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = db.get_user(update.effective_chat.id)
     if not user:
-        await update.message.reply_text("No estás suscrito a ninguna provincia.")
+        html = "<p>No estás suscrito a ninguna provincia.</p>"
+        await send_rich(update.effective_chat.id, html)
         return
-    await update.message.reply_text(
-        f"📍 Suscrito a: *{user['provincia_name']}*\n"
-        f"Usa /alertas para ver alertas actuales.",
-        parse_mode="Markdown",
-    )
+    await send_rich(update.effective_chat.id, format_estado_rich(user["provincia_name"]))
 
 
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = db.get_user(update.effective_chat.id)
     if not user:
-        await update.message.reply_text("No estás suscrito.")
+        html = "<p>No estás suscrito.</p>"
+        await send_rich(update.effective_chat.id, html)
         return
     db.remove_user(update.effective_chat.id)
-    await update.message.reply_text(
-        f"❌ Suscripción a {user['provincia_name']} cancelada.",
-        reply_markup=ReplyKeyboardRemove(),
+    html = (
+        f"<h2>❌ Suscripción cancelada</h2>\n"
+        f"<p>No recibirás más alertas de <b>{user['provincia_name']}</b>.</p>\n"
+        f"<p>Usa <code>/suscribir</code> si quieres volver a suscribirte.</p>"
     )
+    await send_rich(update.effective_chat.id, html, reply_markup=ReplyKeyboardRemove())
 
 
 async def handle_provincia_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -151,27 +175,12 @@ async def handle_provincia_text(update: Update, context: ContextTypes.DEFAULT_TY
         nombre = PROVINCIA_CODES[codigo]
 
     db.add_user(update.effective_chat.id, codigo, nombre)
-    await update.message.reply_text(
-        f"✅ Suscrito a alertas de *{nombre}*",
-        parse_mode="Markdown",
-        reply_markup=ReplyKeyboardRemove(),
+    html = (
+        f"<h2>✅ Suscrito correctamente</h2>\n"
+        f"<p>Recibirás alertas de <b>{nombre}</b> cuando AEMET emita avisos.</p>\n"
+        f"<footer>Usa /alertas para consultar · /cancelar para darte de baja</footer>"
     )
-
-
-def _split_message(text: str, limit: int = 4096) -> list[str]:
-    if len(text) <= limit:
-        return [text]
-    parts = []
-    while text:
-        if len(text) <= limit:
-            parts.append(text)
-            break
-        split_at = text.rfind("\n", 0, limit)
-        if split_at == -1:
-            split_at = limit
-        parts.append(text[:split_at])
-        text = text[split_at:].lstrip("\n")
-    return parts
+    await send_rich(update.effective_chat.id, html, reply_markup=ReplyKeyboardRemove())
 
 
 def create_app() -> Application:
@@ -181,6 +190,8 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("suscribir", suscribir))
     app.add_handler(CommandHandler("provincias", provincias))
     app.add_handler(CommandHandler("alertas", alertas))
+    app.add_handler(CommandHandler("alertas_nacionales", alertas_nacionales))
+    app.add_handler(CommandHandler("clima", clima))
     app.add_handler(CommandHandler("estado", estado))
     app.add_handler(CommandHandler("cancelar", cancelar))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_provincia_text))

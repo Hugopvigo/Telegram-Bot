@@ -242,3 +242,130 @@ def search_provincia(query: str) -> str | None:
         if q in nombre.lower():
             return codigo
     return None
+
+
+SEVERITY_COLORS = {
+    "Extreme": "#FF0000",
+    "Severe": "#FF8C00",
+    "Moderate": "#FFD700",
+    "Minor": "#00AA00",
+}
+
+
+def format_alerta_rich(alerta: dict) -> str:
+    event = alerta.get("event", "Alerta meteorológica")
+    severity = alerta.get("severity", "")
+    headline = alerta.get("headline", "")
+    description = alerta.get("description", "")
+    effective = _fmt_dt(alerta.get("effective", ""))
+    expires = _fmt_dt(alerta.get("expires", ""))
+    areas = alerta.get("areas", [])
+    certainty = alerta.get("certainty", "")
+
+    severity_emoji = {
+        "Extreme": "🔴", "Severe": "🟠",
+        "Moderate": "🟡", "Minor": "🟢",
+    }.get(severity, "⚪")
+    severity_label = SEVERITY_ES.get(severity, severity)
+    certainty_label = CERTAINTY_ES.get(certainty, certainty)
+
+    html = f"<h3>{severity_emoji} {event}</h3>\n"
+    html += "<p>"
+    html += f"<b>Nivel:</b> {severity_label}"
+    if certainty_label:
+        html += f" · {certainty_label}"
+    html += "</p>\n"
+
+    if headline:
+        html += f"<p><i>{headline}</i></p>\n"
+
+    if description:
+        html += "<details>\n<summary>Descripción completa</summary>\n"
+        html += f"<p>{description[:500]}</p>\n</details>\n"
+
+    if areas:
+        zonas = ", ".join(areas[:3])
+        if len(areas) > 3:
+            zonas += f" (+{len(areas) - 3} más)"
+        html += f"<p>📍 <b>Zonas:</b> {zonas}</p>\n"
+
+    footer_parts = []
+    if effective:
+        footer_parts.append(f"🕐 Desde: {effective}")
+    if expires:
+        footer_parts.append(f"🕐 Hasta: {expires}")
+    if footer_parts:
+        html += f"<footer>{' · '.join(footer_parts)}</footer>\n"
+
+    return html
+
+
+def format_alerta_rich_full(provincia_name: str, alertas_list: list[dict]) -> str:
+    html = f"<h2>⚠ Alertas para {provincia_name}</h2>\n"
+    for i, a in enumerate(alertas_list):
+        html += format_alerta_rich(a)
+        if i < len(alertas_list) - 1:
+            html += "<hr/>\n"
+    html += "<footer>📡 Fuente: AEMET</footer>\n"
+    return html
+
+
+def format_provincias_rich() -> str:
+    nombres = sorted(PROVINCIAS.keys())
+    html = "<h2>🗺 Provincias disponibles</h2>\n"
+    html += '<table striped>\n<tr><th>Provincia</th><th>Código</th></tr>\n'
+    for n in nombres:
+        html += f"<tr><td>{n}</td><td>{PROVINCIAS[n]}</td></tr>\n"
+    html += "</table>\n"
+    return html
+
+
+def format_start_rich() -> str:
+    return """<h2>🌤 AlertasMeteo Bot</h2>
+<p>Te notifico cuando <b>AEMET</b> emita alertas meteorológicas en tu provincia.</p>
+<table bordered>
+<tr><th>Comando</th><th>Qué hace</th></tr>
+<tr><td><code>/suscribir</code></td><td>Suscribirte a alertas</td></tr>
+<tr><td><code>/provincias</code></td><td>Ver las 52 provincias</td></tr>
+<tr><td><code>/alertas</code></td><td>Alertas actuales de tu provincia</td></tr>
+<tr><td><code>/alertas_nacionales</code></td><td>Alertas de toda España</td></tr>
+<tr><td><code>/clima</code></td><td>Pronóstico del tiempo</td></tr>
+<tr><td><code>/estado</code></td><td>Tu suscripción actual</td></tr>
+<tr><td><code>/cancelar</code></td><td>Darse de baja</td></tr>
+</table>"""
+
+
+def format_estado_rich(provincia_name: str) -> str:
+    return f"""<h2>📍 Tu suscripción</h2>
+<table bordered>
+<tr><td><b>Provincia</b></td><td>{provincia_name}</td></tr>
+<tr><td><b>Estado</b></td><td>✅ Activa</td></tr>
+</table>
+<p>Usa <code>/alertas</code> para ver alertas actuales.</p>"""
+
+
+def format_nacional_rich(alertas_list: list[dict]) -> str:
+    if not alertas_list:
+        return "<h2>✅ Sin alertas</h2>\n<p>No hay alertas activas en España.</p>"
+
+    html = "<h2>🗺 Alertas nacionales</h2>\n"
+    html += '<table bordered striped>\n<tr><th>Nivel</th><th>Evento</th><th>Zonas</th></tr>\n'
+
+    by_severity: dict[str, list[dict]] = {"Extreme": [], "Severe": [], "Moderate": [], "Minor": []}
+    for a in alertas_list:
+        sev = a.get("severity", "Minor")
+        by_severity.setdefault(sev, []).append(a)
+
+    for sev in ["Extreme", "Severe", "Moderate", "Minor"]:
+        for a in by_severity[sev]:
+            emoji = {"Extreme": "🔴", "Severe": "🟠", "Moderate": "🟡", "Minor": "🟢"}.get(sev, "⚪")
+            event = a.get("event", "Alerta")
+            areas = a.get("areas", [])
+            zonas = ", ".join(areas[:2])
+            if len(areas) > 2:
+                zonas += f" (+{len(areas) - 2})"
+            html += f"<tr><td>{emoji}</td><td>{event}</td><td>{zonas}</td></tr>\n"
+
+    html += "</table>\n"
+    html += f"<footer>📡 {len(alertas_list)} alertas activas · Fuente: AEMET</footer>\n"
+    return html

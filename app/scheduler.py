@@ -2,7 +2,13 @@ import asyncio
 from collections import defaultdict
 from telegram.ext import ContextTypes
 from app import database as db
-from app.aemet import get_alertas_provincia, format_alerta, clear_tar_cache, MIN_NOTIFY_SEVERITY
+from app.rich import send_rich
+from app.aemet import (
+    get_alertas_provincia,
+    format_alerta_rich,
+    clear_tar_cache,
+    MIN_NOTIFY_SEVERITY,
+)
 
 
 async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
@@ -26,17 +32,13 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
             if not alert_id:
                 continue
 
-            text = format_alerta(alerta)
+            html = format_alerta_rich(alerta)
 
             for chat_id in chat_ids:
                 if db.is_alert_sent(chat_id, alert_id):
                     continue
                 try:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=text,
-                        parse_mode="Markdown",
-                    )
+                    await send_rich(chat_id, html)
                     db.mark_alert_sent(chat_id, alert_id)
                 except Exception as e:
                     print(f"Error enviando a {chat_id}: {e}")
