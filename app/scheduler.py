@@ -6,6 +6,7 @@ from app.rich import send_rich
 from app.aemet import (
     get_alertas_provincia,
     format_alerta_rich,
+    merge_alertas,
     clear_tar_cache,
     MIN_NOTIFY_SEVERITY,
 )
@@ -27,8 +28,10 @@ async def check_and_notify(context: ContextTypes.DEFAULT_TYPE):
         if not alertas:
             continue
 
+        alertas = merge_alertas(alertas)
+
         for alerta in alertas:
-            alert_id = alerta.get("identifier", alerta.get("id", ""))
+            alert_id = alerta.get("dedup_key") or alerta.get("identifier", alerta.get("id", ""))
             if not alert_id:
                 continue
 

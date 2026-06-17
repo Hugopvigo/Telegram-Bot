@@ -191,6 +191,49 @@ def get_alertas_nacional(min_severity: str | None = None) -> list[dict]:
         return []
 
 
+def _parse_dt(iso: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(iso)
+    except (ValueError, TypeError):
+        return None
+
+
+def merge_alertas(alertas: list[dict]) -> list[dict]:
+    """Agrupa avisos que comparten (event, severity, areas) en uno solo.
+
+    AEMET emite un CAP por zona y por día de validez, así que un mismo
+    fenómeno+nivel+zona llega partido en varios avisos que solo difieren en la
+    fecha de fin. Los colapsamos en un único aviso con el rango completo
+    (effective mínimo .. expires máximo) y una clave de deduplicación estable
+    que no depende del identifier crudo de AEMET (que cambia por día/elaboración).
+    """
+    groups: dict[tuple, list[dict]] = {}
+    order: list[tuple] = []
+    for a in alertas:
+        key = (
+            a.get("event", ""),
+            a.get("severity", ""),
+            tuple(sorted(a.get("areas") or [])),
+        )
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(a)
+
+    merged: list[dict] = []
+    for key in order:
+        items = groups[key]
+        earliest = min(items, key=lambda x: _parse_dt(x.get("effective", "")) or datetime.max)
+        latest = max(items, key=lambda x: _parse_dt(x.get("expires", "")) or datetime.min)
+        base = dict(latest)
+        base["effective"] = earliest.get("effective", "")
+        base["expires"] = latest.get("expires", "")
+        event, severity, areas = key
+        base["dedup_key"] = f"{event}|{severity}|{','.join(areas)}|{base['expires']}"
+        merged.append(base)
+    return merged
+
+
 def _fmt_dt(iso: str) -> str:
     try:
         dt = datetime.fromisoformat(iso)
