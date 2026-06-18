@@ -1,4 +1,4 @@
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, BotCommand
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -123,19 +123,11 @@ async def alertas_nacionales(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def clima(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = db.get_user(update.effective_chat.id)
-    if not user:
-        html = (
-            "<h2>❌ No suscrito</h2>\n"
-            "<p>Usa <code>/suscribir</code> primero para seleccionar tu provincia.</p>"
-        )
-        await send_rich(update.effective_chat.id, html)
-        return
-
     html = (
-        f"<h2> Pronóstico para {user['provincia_name']}</h2>\n"
-        f"<p>Función en desarrollo. Próximamente podrás ver el pronóstico diario.</p>\n"
-        f"<footer>📡 Fuente: AEMET</footer>"
+        "<h2>🌤 Consulta el tiempo</h2>\n"
+        "<p>Puedes consultar el tiempo en la web <a href=\"http://tiempo.hugopvigo.es/\">tiempo.hugopvigo.es</a></p>\n"
+        "<p>O descargarte la app desde <a href=\"https://hugopvigo.github.io/Tiempo/\">hugopvigo.github.io/Tiempo</a></p>\n"
+        "<footer>📡 Fuente: AEMET</footer>"
     )
     await send_rich(update.effective_chat.id, html)
 
@@ -195,5 +187,17 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("estado", estado))
     app.add_handler(CommandHandler("cancelar", cancelar))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_provincia_text))
+
+    commands = [
+        BotCommand("start", "Iniciar el bot"),
+        BotCommand("suscribir", "Suscribirse a una provincia"),
+        BotCommand("provincias", "Ver lista de provincias"),
+        BotCommand("alertas", "Alertas meteorológicas"),
+        BotCommand("alertas_nacionales", "Alertas a nivel nacional"),
+        BotCommand("clima", "Consulta el tiempo"),
+        BotCommand("estado", "Estado del bot"),
+        BotCommand("cancelar", "Cancelar suscripción"),
+    ]
+    app.bot.set_my_commands(commands)
 
     return app
