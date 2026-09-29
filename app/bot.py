@@ -125,7 +125,7 @@ async def alertas_nacionales(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def clima(update: Update, context: ContextTypes.DEFAULT_TYPE):
     html = (
         "<h2>🌤 Consulta el tiempo</h2>\n"
-        "<p>Puedes consultar el tiempo en la web <a href=\"http://tiempo.hugopvigo.es/\">tiempo.hugopvigo.es</a></p>\n"
+        "<p>Puedes consultar el tiempo en la web <a href=\"https://tiempo.hugoperezvigo.es/\">tiempo.hugoperezvigo.es</a></p>\n"
         "<p>O descargarte la app desde <a href=\"https://hugopvigo.github.io/Tiempo/\">hugopvigo.github.io/Tiempo</a></p>\n"
         "<footer>📡 Fuente: AEMET</footer>"
     )
