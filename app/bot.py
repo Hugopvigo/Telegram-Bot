@@ -175,8 +175,24 @@ async def handle_provincia_text(update: Update, context: ContextTypes.DEFAULT_TY
     await send_rich(update.effective_chat.id, html, reply_markup=ReplyKeyboardRemove())
 
 
+async def post_init(app: Application):
+    await app.bot.set_my_commands(COMMANDS)
+
+
+COMMANDS = [
+    BotCommand("start", "Iniciar el bot"),
+    BotCommand("suscribir", "Suscribirse a una provincia"),
+    BotCommand("provincias", "Ver lista de provincias"),
+    BotCommand("alertas", "Alertas meteorológicas"),
+    BotCommand("alertas_nacionales", "Alertas a nivel nacional"),
+    BotCommand("clima", "Consulta el tiempo"),
+    BotCommand("estado", "Estado del bot"),
+    BotCommand("cancelar", "Cancelar suscripción"),
+]
+
+
 def create_app() -> Application:
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("suscribir", suscribir))
@@ -187,17 +203,5 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("estado", estado))
     app.add_handler(CommandHandler("cancelar", cancelar))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_provincia_text))
-
-    commands = [
-        BotCommand("start", "Iniciar el bot"),
-        BotCommand("suscribir", "Suscribirse a una provincia"),
-        BotCommand("provincias", "Ver lista de provincias"),
-        BotCommand("alertas", "Alertas meteorológicas"),
-        BotCommand("alertas_nacionales", "Alertas a nivel nacional"),
-        BotCommand("clima", "Consulta el tiempo"),
-        BotCommand("estado", "Estado del bot"),
-        BotCommand("cancelar", "Cancelar suscripción"),
-    ]
-    app.bot.set_my_commands(commands)
 
     return app
