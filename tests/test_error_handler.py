@@ -28,8 +28,10 @@ class ErrorHandlerTest(unittest.IsolatedAsyncioTestCase):
         ctx = SimpleNamespace(error=RuntimeError("boom"))
         with self.assertLogs("app.bot", level="ERROR") as logs:
             await error_handler(None, ctx)
+        # exc_info adjunta el tipo de error al registro.
         self.assertTrue(
-            any("Traceback" in line for line in logs.output), logs.output
+            any("RuntimeError: boom" in line for line in logs.output),
+            logs.output,
         )
 
 
