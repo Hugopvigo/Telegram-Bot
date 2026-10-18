@@ -1,10 +1,14 @@
+import logging
 import socket
+import sys
 import time
 
 from app.database import init_db
 from app.bot import create_app
 from app.scheduler import check_and_notify
 from app.config import CHECK_INTERVAL_MINUTES, validate
+
+logger = logging.getLogger("tiempobot")
 
 
 def _wait_for_network(host="api.telegram.org", retries=12, interval=10):
@@ -13,16 +17,21 @@ def _wait_for_network(host="api.telegram.org", retries=12, interval=10):
     for attempt in range(1, retries + 1):
         try:
             socket.getaddrinfo(host, 443, 0, 1)
-            print(f"Red disponible tras {attempt} intento(s).")
+            logger.info("Red disponible tras %d intento(s).", attempt)
             return
         except OSError as e:
-            print(f"DNS no disponible (intento {attempt}/{retries}): {e} — retry en {interval}s")
+            logger.warning("DNS no disponible (intento %d/%d): %s — retry en %ds", attempt, retries, e, interval)
             if attempt == retries:
                 raise
             time.sleep(interval)
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
     validate()
     init_db()
     _wait_for_network()
@@ -36,7 +45,7 @@ def main():
         name="aemet_check",
     )
 
-    print(f"🤖 Bot iniciado. Comprobando alertas cada {CHECK_INTERVAL_MINUTES} min.")
+    logger.info("🤖 Bot iniciado. Comprobando alertas cada %d min.", CHECK_INTERVAL_MINUTES)
     app.run_polling(drop_pending_updates=True)
 
 

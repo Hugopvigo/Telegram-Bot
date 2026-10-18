@@ -1,4 +1,7 @@
+import logging
+
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, BotCommand
+from telegram.error import NetworkError
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -179,6 +182,26 @@ async def post_init(app: Application):
     await app.bot.set_my_commands(COMMANDS)
 
 
+logger = logging.getLogger(__name__)
+
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Registra los errores de los handlers.
+
+    Los fallos transitorios de red (Bad Gateway nocturnos de Telegram)
+    se dejan en WARNING sin traceback; el resto se registra con traza.
+    """
+    err = context.error
+    if isinstance(err, NetworkError):
+        logger.warning("Error de red transitorio con Telegram: %s", err)
+        return
+    logger.error(
+        "Error no controlado en un update: %s",
+        err,
+        exc_info=err if isinstance(err, BaseException) else None,
+    )
+
+
 COMMANDS = [
     BotCommand("start", "Iniciar el bot"),
     BotCommand("suscribir", "Suscribirse a una provincia"),
@@ -203,5 +226,7 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("estado", estado))
     app.add_handler(CommandHandler("cancelar", cancelar))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_provincia_text))
+
+    app.add_error_handler(error_handler)
 
     return app
