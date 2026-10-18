@@ -32,6 +32,8 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         stream=sys.stdout,
     )
+    # httpx registra la URL de cada petición, y la de Telegram lleva el token
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     validate()
     init_db()
     _wait_for_network()
