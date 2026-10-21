@@ -1,3 +1,7 @@
+<meta property="og:title" content="TELEGRAM-BOT">
+<meta property="og:description" content="Un bot de Telegram que avisa de los avisos meteorológicos de AEMET.">
+<meta property="og:image" content="https://raw.githubusercontent.com/Hugopvigo/Telegram-Bot/main/docs/capturas/og.png">
+
 <p align="center">
   <img src="docs/capturas/00-cabecera.png" alt="TiempoBot — alertas meteorológicas de AEMET en Telegram" width="100%">
 </p>
